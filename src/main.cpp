@@ -1,7 +1,7 @@
 #include <iostream>
 #include "Plugin.h"
 #include "ChatGPT.h"
-#include "Logger.h"
+#include "logger.h"
 #include "cqhttp_base.pb.h"
 #include <vector>
 
