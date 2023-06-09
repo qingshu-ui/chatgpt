@@ -4,9 +4,11 @@
 #include "logger.h"
 #include "cqhttp_base.pb.h"
 #include <vector>
+#include "google/protobuf/util/json_util.h"
 
 using namespace cqhttp;
 using namespace std;
+using namespace google::protobuf::util;
 
 typedef std::map<int64_t, std::shared_ptr<ChatGPT>> ChatgptMap;
 class ChatgptPlugin : public Plugin
@@ -52,7 +54,7 @@ void ChatgptPlugin::onPrivateMessage(std::shared_ptr<cqhttp::PrivateMessageEvent
     auto login_info = bot->getLoginInfo();
     send_data->set_name(login_info->nickname());
 
-    auto chat = chatgpt_map.at(event->user_id());      // Get chatgpt instance obj.
+    auto &&chat = chatgpt_map.at(event->user_id());    // Get chatgpt instance obj.
     auto result_msg = chat->message(event->message()); // Send a message to chatgpt and wait for a response.
     send_data->set_content(result_msg);
     send_forwward_msg.set_allocated_data(send_data);
@@ -68,14 +70,14 @@ void ChatgptPlugin::onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> ev
 
     if (is_at != std::string::npos)
     {
-        LOG(INFO) << "收到@消息: " << message.substr(at_obj.length() + 1);
+        auto result_group_msg = message.replace(is_at, at_obj.length(), "");
+        LOG(INFO) << "收到@消息: " << result_group_msg;
         if (chatgpt_map.count(event->user_id()) < 1)
         {
             std::shared_ptr<ChatGPT> gpt_ptr(new ChatGPT(event->user_id(), 6));
             chatgpt_map.insert({event->user_id(), gpt_ptr});
         }
-        auto chat = chatgpt_map.at(event->user_id());
-        auto result_group_msg = message.substr(at_obj.length() + 1);
+        auto &&chat = chatgpt_map.at(event->user_id());
         auto result_msg = chat->message(result_group_msg);
 
         // Make received group message as forward message.
@@ -85,7 +87,7 @@ void ChatgptPlugin::onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> ev
         ForwardMessage_Data *receive_data = new ForwardMessage_Data;
         receive_data->set_uin(to_string(event->user_id()));
         auto group_member_info = bot->getGroupMemberInfo(event->group_id(), event->user_id());
-        if(group_member_info)
+        if (group_member_info)
             receive_data->set_name(group_member_info->nickname());
         receive_data->set_content(result_group_msg);
         make_receive_forward.set_allocated_data(receive_data);
@@ -97,13 +99,29 @@ void ChatgptPlugin::onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> ev
         ForwardMessage_Data *sender_data = new ForwardMessage_Data;
         sender_data->set_uin(to_string(bot->self_id));
         auto login_info = bot->getLoginInfo();
-        if(login_info)
+        if (login_info)
             sender_data->set_name(login_info->nickname());
         sender_data->set_content(result_msg);
         sender_forward.set_allocated_data(sender_data);
         v_forward_msg.push_back(sender_forward);
 
         bot->sendGroupForwardMsg(event->group_id(), v_forward_msg);
+    }
+
+    if (event->message().find("获取群信息") != std::string::npos)
+    {
+        auto group_info = bot->getGroupInfo(event->group_id());
+        if (group_info)
+        {
+            ostringstream ostr;
+            ostr << "group_name: " << group_info->group_name() <<endl
+            << "group_id: "<<group_info->group_id() << endl
+            << "group_level: " << group_info->group_level() <<endl
+            << "group_memo: " << group_info->group_memo() <<endl
+            << "group_create_time: " << group_info->group_create_time();
+
+            bot->sendGroupMessage(ostr.str(), event->group_id());
+        }
     }
 }
 

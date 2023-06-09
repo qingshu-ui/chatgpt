@@ -22,12 +22,18 @@ std::string ChatGPT::message(const std::string &msg)
     Json::Reader reader;
     if (reader.parse(resp, resp_json))
     {
-        auto choices = resp_json["choices"];
-        Json::FastWriter writer;
-        std::string aaa = writer.write(choices);
-        Json::Value result_message = choices[0]["message"];
-        this->push_back(result_message);
-        return result_message["content"].asString();
+        if (resp_json["error"].isNull())
+        {
+            auto choices = resp_json["choices"];
+            Json::FastWriter writer;
+            std::string aaa = writer.write(choices);
+            Json::Value result_message = choices[0]["message"];
+
+            this->push_back(result_message);
+            return result_message["content"].asString();
+        }
+        std::string error_str = resp_json["error"]["message"].asString();
+        return error_str;
     }
     return std::string();
 }
@@ -63,7 +69,7 @@ std::string ChatGPT::post()
 
         std::vector<std::string> headers;
         headers.push_back("Content-Type: application/json");
-        headers.push_back("Authorization: Bearer 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");
+        headers.push_back("Authorization: Bearer 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");
         headers.push_back("OpenAI-Organization: org-vDU2aeTZMuq3tH0FrHoG129m");
 
         struct curl_slist *m_headers = nullptr;
