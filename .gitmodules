@@ -1,0 +1,6 @@
+[submodule "protocol"]
+	path = protocol
+	url = https://github.com/qingshu-ui/protocol.git
+[submodule "PluginDev"]
+	path = PluginDev
+	url = https://github.com/qingshu-ui/PluginDev.git
