@@ -1,0 +1,19 @@
+[requires]
+drogon/1.8.3
+libcurl/8.1.1
+protobuf/3.21.1
+openssl/3.1.1
+zlib/1.2.13
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+
+[options]
+drogon*:shared=True
+libcurl*:shared=True
+protobuf*:shared=True
+
+[imports]
+bin, *.dll -> ./lib
