@@ -5,20 +5,30 @@
 #include "cqhttp_base.pb.h"
 #include <vector>
 #include "google/protobuf/util/json_util.h"
+#include <filesystem>
+#include "Authentication.h"
 
 using namespace cqhttp;
 using namespace std;
 using namespace google::protobuf::util;
+namespace fs = std::filesystem;
 
 typedef std::map<int64_t, std::shared_ptr<ChatGPT>> ChatgptMap;
 class ChatgptPlugin : public Plugin
 {
+private:
+    string authorization;
+    string organization;
+    Authentication authentication;
+
 public:
     using Plugin::Plugin;
     ChatgptMap chatgpt_map;
     void onPrivateMessage(std::shared_ptr<cqhttp::PrivateMessageEvent> event, std::shared_ptr<Bot> bot) override;
 
     void onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> event, std::shared_ptr<Bot> bot) override;
+
+    void onCreated() override; // 插件被加载时调用，在这里初始化
 };
 
 void ChatgptPlugin::onPrivateMessage(std::shared_ptr<cqhttp::PrivateMessageEvent> event, std::shared_ptr<Bot> bot)
@@ -29,7 +39,7 @@ void ChatgptPlugin::onPrivateMessage(std::shared_ptr<cqhttp::PrivateMessageEvent
     }
     if (chatgpt_map.count(event->user_id()) < 1)
     {
-        std::shared_ptr<ChatGPT> gpt_ptr(new ChatGPT(event->user_id(), 6));
+        std::shared_ptr<ChatGPT> gpt_ptr(new ChatGPT(event->user_id(), 6, this->authentication));
         chatgpt_map.insert({event->user_id(), gpt_ptr});
     }
 
@@ -74,7 +84,7 @@ void ChatgptPlugin::onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> ev
         LOG(INFO) << "收到@消息: " << result_group_msg;
         if (chatgpt_map.count(event->user_id()) < 1)
         {
-            std::shared_ptr<ChatGPT> gpt_ptr(new ChatGPT(event->user_id(), 6));
+            std::shared_ptr<ChatGPT> gpt_ptr(new ChatGPT(event->user_id(), 6, this->authentication));
             chatgpt_map.insert({event->user_id(), gpt_ptr});
         }
         auto &&chat = chatgpt_map.at(event->user_id());
@@ -114,15 +124,95 @@ void ChatgptPlugin::onGroupMessage(std::shared_ptr<cqhttp::GroupMessageEvent> ev
         if (group_info)
         {
             ostringstream ostr;
-            ostr << "group_name: " << group_info->group_name() <<endl
-            << "group_id: "<<group_info->group_id() << endl
-            << "group_level: " << group_info->group_level() <<endl
-            << "group_memo: " << group_info->group_memo() <<endl
-            << "group_create_time: " << group_info->group_create_time();
+            ostr << "group_name: " << group_info->group_name() << endl
+                 << "group_id: " << group_info->group_id() << endl
+                 << "group_level: " << group_info->group_level() << endl
+                 << "group_memo: " << group_info->group_memo() << endl
+                 << "group_create_time: " << group_info->group_create_time();
 
             bot->sendGroupMessage(ostr.str(), event->group_id());
         }
     }
+}
+
+void ChatgptPlugin::onCreated()
+{
+    // 检查 plugins/chatgpt/config.json 目录/文件 是否存在，不存在则创建
+    string path_str("plugins/chatgpt/config.json");
+    fs::path path(path_str);
+
+    if (!fs::exists(path))
+    {
+        if (!fs::exists(path.parent_path()))
+        {
+            LOG(INFO) << "文件夹不存在，正在创建";
+            if (fs::create_directories(path.parent_path()))
+            {
+                LOG(INFO) << "目录创建成功";
+            }
+            else
+            {
+                LOG(INFO) << "目录创建失败";
+            }
+        }
+
+        LOG(INFO) << "配置文件不存在，正在创建配置文件";
+        ofstream config_file(path_str);
+        if (config_file)
+        {
+            LOG(INFO) << "配置文件创建成功，正在写入数据";
+            Json::Value config_json(Json::ValueType::objectValue);
+            config_json["authorization"] = "$OPENAI_API_KEY";
+            config_json["organization"] = "$ORGANIZATION";
+            Json::FastWriter writer;
+            config_file << writer.write(config_json);
+            config_file.close();
+        }
+    }
+
+    // 读取文件中的数据，保存到内存中
+    ifstream config_file(path_str, ios::in);
+    if (config_file.is_open())
+    {
+        string line;
+        string all_content;
+        LOG(INFO) << "正在读取配置文件";
+        while (getline(config_file, line))
+        {
+            all_content += line;
+        }
+        if (all_content.length() > 0)
+        {
+            Json::Value config_json(Json::ValueType::nullValue);
+            Json::Reader reader;
+            LOG(INFO) << "正在解析配置文件";
+            if (reader.parse(all_content, config_json))
+            {
+                LOG(INFO) << "配置文件解析成功";
+                this->authorization = config_json["authorization"].asString();
+                this->organization = config_json["organization"].asString();
+            }
+            else
+            {
+                LOG(INFO) << "配置文件解析失败";
+            }
+        }
+        else
+        {
+            LOG(ERR) << "错误的配置";
+        }
+    }
+
+    // 创建 Authentication 对象
+    if (this->authorization.length() > 0 && this->organization.length() > 0)
+    {
+        authentication = Authentication(this->authorization, this->organization);
+    }
+
+    LOG(INFO) << "配置文件初始化完成";
+    LOG(INFO) << "Authentication: " << this->authentication.authorization;
+    LOG(INFO) << "Organization: " << this->authentication.organization;
+    LOG(INFO) << "Authentication is complete: " << (this->authentication.is_complete() ? "TRUE" : "FALSE");
 }
 
 extern "C" EXPORT_API Plugin *registerPlugin()

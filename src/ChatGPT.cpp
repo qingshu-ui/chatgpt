@@ -2,8 +2,12 @@
 #include "curl/curl.h"
 #include "logger.h"
 
-ChatGPT::ChatGPT(int64_t session_id, int max_session_count) : session_id(session_id),
-                                                              max_session_count(max_session_count)
+ChatGPT::ChatGPT(int64_t session_id,
+                 int max_session_count,
+                 const Authentication &authentication) : session_id(session_id),
+                                                         max_session_count(max_session_count),
+                                                         authentication(authentication)
+
 {
 }
 
@@ -69,8 +73,8 @@ std::string ChatGPT::post()
 
         std::vector<std::string> headers;
         headers.push_back("Content-Type: application/json");
-        headers.push_back("Authorization: Bearer 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");
-        headers.push_back("OpenAI-Organization: org-vDU2aeTZMuq3tH0FrHoG129m");
+        headers.push_back("Authorization: Bearer " + this->authentication.authorization);
+        headers.push_back("OpenAI-Organization: " + this->authentication.organization);
 
         struct curl_slist *m_headers = nullptr;
         for (auto it = headers.begin(); it != headers.end(); it++)

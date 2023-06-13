@@ -3,11 +3,12 @@
 
 #include <iostream>
 #include "json/json.h"
+#include "Authentication.h"
 
 class ChatGPT
 {
 public:
-    ChatGPT(int64_t session_id, int max_session_count);
+    ChatGPT(int64_t session_id, int max_session_count, const Authentication &);
     ~ChatGPT();
 
     std::string message(const std::string &msg); // 向 GPT 提问
@@ -17,6 +18,7 @@ private:
     Json::Value messages;  // 记录会话的容器
     int64_t session_id;    // 会话持有者
     int max_session_count; // 会话最大记录
+    Authentication authentication;
     void push_back(Json::Value &msg);
 };
 
